@@ -3,12 +3,10 @@
 Base URL configurable (por defecto localhost; en la intranet: LAYA_BASE=http://<ip-spark>:8432).
 """
 import json
-import os
 import time
 import urllib.request
 
-BASE = os.environ.get("LAYA_BASE", "http://localhost:8432")
-URL = f"{BASE}/v1/systemone"
+from laya_base import URL  # noqa: F401  (URL derivada de LAYA_BASE/.env)
 
 
 def predict(state, questions):

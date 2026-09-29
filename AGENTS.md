@@ -4,21 +4,24 @@
 
 Experiments against a local **Laya** server (Jev-compatible protocol) that answers
 structured yes/no and choice questions over a free-text `state`, hosted for free on the
-Spark (set `LAYA_BASE` to its address and port; no hardcoded intranet IPs in files).
-No backend, no frontend, no tests: a handful of standalone Python scripts that talk
-to that server.
+Spark. No backend, no frontend, no tests: a handful of standalone Python scripts that
+talk to that server. The server address lives in `.env` (never hardcoded in files).
 
 ## Architecture (as defined by `laya-hector.py`)
 
-The files are independent, disposable CLI scripts. The canonical shape to copy is
-`laya-hector.py`:
+The `.py` experiment files are independent, disposable CLI scripts. A single shared
+stdlib module, `laya_base.py`, centralizes base-URL resolution so every script shares the
+exact same config source. The canonical experiment shape to copy is `laya-hector.py`.
 
 - **Stdlib only**: `urllib.request` + `json` + `time`. No `requests`, no SDK, no local
-  packages. This is deliberate — every script must run with bare `python3` and
-  `.venv-laya/` is not needed at runtime.
-- **Configurable base URL at the top**: `BASE = os.environ.get("LAYA_BASE", "http://localhost:8432")`,
-  endpoints are `{BASE}/v1/systemone` and `{BASE}/health`. Never hardcode intranet IPs in files
-  (security: repo may be public). On the intranet, export `LAYA_BASE` before running.
+  packages, no dotenv library. Every script runs with bare `python3`; `.venv-laya/` is
+  not needed at runtime.
+- **Centralized base URL** via `laya_base.py`, which exports `BASE`, `URL` and `HEALTH`
+  with this precedence: `LAYA_BASE` env var → `LAYA_BASE=...` in the project-root `.env` →
+  default `http://localhost:8432`. Experiment scripts do `from laya_base import URL` (and
+  `HEALTH` where the health endpoint is used) and `POST {URL}` = `{BASE}/v1/systemone`.
+  Never hardcode intranet IPs in versioned files (security: repo may be public); the real
+  address lives in `.env` (git-ignored).
 - **Protocol** (Jev `POST /v1/systemone`):
   - Request: `{"state": <string>, "questions": {<name>: {"type": ..., "instructions": <str>, ...}}}`
   - Question `type`:
@@ -29,7 +32,7 @@ The files are independent, disposable CLI scripts. The canonical shape to copy i
 - **Helper structure** worth keeping (from `laya-hector.py`):
   - `predict(state, questions) -> (data, ms)` — one POST, returns parsed JSON + latency in ms.
   - `show(...)` — prints a one-line result, tolerating all three answer shapes (`choice` / `noul` / `score`).
-  - Script body is a sequence of **named example sections** (`== Ejemplo 1 · ... ==`) — each
+  - Experiment body is a sequence of **named example sections** (`== Ejemplo 1 · ... ==`) — each
     section is self-contained state + questions + print. Run = `python3 <script>.py`.
 
 ## Conventions for new agents
@@ -39,26 +42,32 @@ The files are independent, disposable CLI scripts. The canonical shape to copy i
 - New scripts MUST be runnable with the system `python3` and must not add
   dependencies to `.venv-laya` (the package inside is legacy/unused since all
   scripts now go over HTTP).
-- **Configurable base URL**: scripts read `LAYA_BASE` (default `http://localhost:8432`).
-  Intrusion IP, never in files; set `LAYA_BASE` before running on the intranet.
+- **Config resolution**: scripts import `URL` (and `HEALTH`) from `laya_base.py`, which
+  reads `LAYA_BASE` from an env var first, then the project-root `.env`, then localhost.
+  Put the real intranet address in `.env` (git-ignored); never in versioned code.
 - Comments and user-facing prints in Spanish, identifiers in English (current style).
-- Do **not** commit `.venv-laya/` (ignored by git).
+- Do **not** commit `.venv-laya/` or `.env` (both ignored by git). `.env.example` is tracked.
 
 ## File map
 
 | File | Role |
 |------|------|
+| `laya_base.py` | Shared stdlib config: resolves `BASE`/`URL`/`HEALTH` from env → `.env` → localhost |
 | `laya-hector.py` | Reference architecture: examples from hdeleon's video (`choice` type: beer for fish tacos, spam classifier) |
 | `laya-client.py` | ES/EN yes/no test cases (`noul` type) with health check |
 | `laya-demo.py` | Minimal `noul` example (double-charge ES case) over the same protocol |
-| `.venv-laya/` | venv (Python 3.13) holding the `laya` package |
+| `.env` | Local config holding the real `LAYA_BASE`. **Git-ignored — never commit.** |
+| `.env.example` | Tracked template to copy into `.env` |
+| `.venv-laya/` | venv (Python 3.13) holding the legacy `laya` package |
 
 ## How to run
 
 ```bash
-# server must be up on the Spark — export the base URL for intranet runs
-export LAYA_BASE=http://<ip-spark>:8432
+# 1) Point at your server (once): copy the template and fill in the real address
+cp .env.example .env          # then edit .env → LAYA_BASE=http://<ip-spark>:8432
+#    (or export LAYA_BASE for the session instead; either wins the precedence order)
 
+# 2) Run any script (server must be up)
 python3 laya-hector.py
 python3 laya-client.py
 python3 laya-demo.py

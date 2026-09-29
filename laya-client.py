@@ -4,12 +4,10 @@ Laya, con y sin inglés, con chequeo de salud previo.
 Base URL configurable (por defecto localhost; en la intranet: LAYA_BASE=http://<ip-spark>:8432).
 """
 import json
-import os
 import time
 import urllib.request
 
-BASE = os.environ.get("LAYA_BASE", "http://localhost:8432")
-URL = f"{BASE}/v1/systemone"
+from laya_base import URL, HEALTH
 
 
 def predict(state, questions):
@@ -34,7 +32,7 @@ def show(state, name, data, ms):
 
 # --- Salud ------------------------------------------------------------------
 print("== Salud del servidor ==")
-with urllib.request.urlopen(f"{BASE}/health", timeout=10) as r:
+with urllib.request.urlopen(HEALTH, timeout=10) as r:
     h = json.loads(r.read())
 print(f"  ok | device={h['device']} | loaded={h['loaded']}")
 
